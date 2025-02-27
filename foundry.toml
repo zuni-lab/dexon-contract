@@ -15,13 +15,13 @@ script = "script"
 solc = "0.8.28"
 src = "src"
 test = "tests"
+metadata = true
+metadata_hash = "none"          # disable ipfs
+use_literal_content = true      # store source code in the json file directly
 
 [profile.ci]
 fuzz = { runs = 10_000 }
 verbosity = 4
-
-[etherscan]
-mainnet = { key = "${API_KEY_ETHERSCAN}" }
 
 [fmt]
 sort_imports = true

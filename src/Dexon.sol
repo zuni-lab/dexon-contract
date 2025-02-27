@@ -32,10 +32,12 @@ contract Dexon is EIP712 {
     uint256 public constant ONE_HUNDRED_PERCENT = 1e6;
 
     bytes32 public constant ORDER_TYPEHASH = keccak256(
-        "Order(address account,bytes path,uint256 amount,uint256 triggerPrice,uint256 slippage,uint8 orderType,uint8 orderSide,uint256 deadline)" // solhint-disable-line
+        "Order(address account,uint256 nonce,bytes path,uint256 amount,uint256 triggerPrice,uint256 slippage,uint8 orderType,uint8 orderSide,uint256 deadline)" // solhint-disable-line
     );
 
     uint256 private constant _PRICE_SCALE = 1e18;
+
+    mapping(address account => mapping(uint256 nonce => bool used)) public nonces;
 
     enum OrderType {
         STOP_ORDER,
@@ -49,6 +51,7 @@ contract Dexon is EIP712 {
 
     struct Order {
         address account;
+        uint256 nonce;
         bytes path;
         uint256 amount;
         // Price in USDC (18 decimals)
@@ -62,8 +65,8 @@ contract Dexon is EIP712 {
     }
 
     event OrderExecuted(
-        bytes32 indexed orderId,
         address indexed account,
+        uint256 indexed nonce,
         bytes path,
         uint256 amount,
         uint256 triggerPrice,
@@ -74,9 +77,10 @@ contract Dexon is EIP712 {
 
     constructor() EIP712(NAME, VERSION) { }
 
-    function executeOrder(bytes32 orderId, Order memory order) public {
+    function executeOrder(Order memory order) public {
         (address tokenIn, address tokenOut) = _validatePath(order.orderSide, order.path);
 
+        _validateNonce(order.account, order.nonce);
         _validateTriggerCondition(order);
         _validateSignature(order);
 
@@ -100,8 +104,8 @@ contract Dexon is EIP712 {
         ISwapRouter(UNISWAP_V3_ROUTER).exactInput(params);
 
         emit OrderExecuted(
-            orderId,
             order.account,
+            order.nonce,
             order.path,
             order.amount,
             order.triggerPrice,
@@ -137,6 +141,11 @@ contract Dexon is EIP712 {
         }
 
         return tokenPriceOnUsdc;
+    }
+
+    function _validateNonce(address account, uint256 nonce) internal {
+        require(!nonces[account][nonce], "Used nonce");
+        nonces[account][nonce] = true;
     }
 
     function _validatePath(
@@ -200,6 +209,7 @@ contract Dexon is EIP712 {
             abi.encode(
                 ORDER_TYPEHASH,
                 order.account,
+                order.nonce,
                 order.path,
                 order.amount,
                 order.triggerPrice,
