@@ -4,16 +4,16 @@ pragma solidity ^0.8.28;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import { EIP712 } from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
-import { EIP712 } from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
-import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 import { ISwapRouter } from "./externals/uniswapV3/interfaces/ISwapRouter.sol";
 import { IUniswapV3Pool } from "./externals/uniswapV3/interfaces/IUniswapV3Pool.sol";
 import { OracleLibrary } from "./externals/uniswapV3/libraries/OracleLibrary.sol";
-import { PoolAddress } from "./externals/uniswapV3/libraries/PoolAddress.sol";
 import { Path } from "./externals/uniswapV3/libraries/Path.sol";
+import { PoolAddress } from "./externals/uniswapV3/libraries/PoolAddress.sol";
 
 contract Dexon is EIP712 {
     using SafeERC20 for IERC20;
@@ -32,7 +32,7 @@ contract Dexon is EIP712 {
     uint256 public constant ONE_HUNDRED_PERCENT = 1e6;
 
     bytes32 public constant ORDER_TYPEHASH = keccak256(
-        "Order(address account,bytes path,uint256 amount,uint256 triggerPrice,uint256 slippage,uint8 orderType,uint8 orderSide,uint256 deadline)"
+        "Order(address account,bytes path,uint256 amount,uint256 triggerPrice,uint256 slippage,uint8 orderType,uint8 orderSide,uint256 deadline)" // solhint-disable-line
     );
 
     uint256 private constant _PRICE_SCALE = 1e18;
