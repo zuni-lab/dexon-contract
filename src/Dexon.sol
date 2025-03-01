@@ -22,12 +22,12 @@ contract Dexon is EIP712 {
     string public constant NAME = "Dexon";
     string public constant VERSION = "1";
 
-    address public constant UNISWAP_V3_FACTORY = 0x33128a8fC17869897dcE68Ed026d694621f6FDfD;
-    address public constant UNISWAP_V3_ROUTER = 0x2626664c2603336E57B271c5C0b26F421741e481;
-    address public constant WETH_USDC_POOL = 0xd0b53D9277642d899DF5C87A3966A349A798F224;
+    address public constant UNISWAP_V3_FACTORY = 0x961235a9020B05C44DF1026D956D1F4D78014276;
+    address public constant UNISWAP_V3_ROUTER = 0x4c4eABd5Fb1D1A7234A48692551eAECFF8194CA7;
+    address public constant WETH_USDC_POOL = 0xb8bd80BA7aFA32006Ae4cF7D1dA2Ecb8bBCa9Bf8;
 
-    address public constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
-    address public constant WETH = 0x4200000000000000000000000000000000000006;
+    address public constant USDC = 0x9f6006523bbe9D719E83a9f050108dD5463f269d;
+    address public constant WETH = 0x951DbC0e23228A5b5A40f4B845Da75E5658Ba3E4;
 
     uint256 public constant ONE_HUNDRED_PERCENT = 1e6;
 
@@ -80,28 +80,49 @@ contract Dexon is EIP712 {
     function executeOrder(Order memory order) public {
         (address tokenIn, address tokenOut) = _validatePath(order.orderSide, order.path);
 
-        _validateNonce(order.account, order.nonce);
+        _useNonce(order.account, order.nonce);
         _validateTriggerCondition(order);
         _validateSignature(order);
-
-        IERC20(tokenIn).safeTransferFrom(order.account, address(this), order.amount);
-        IERC20(tokenIn).approve(UNISWAP_V3_ROUTER, order.amount);
 
         uint256 tokenInDecimals = IERC20Metadata(tokenIn).decimals();
         uint256 tokenOutDecimals = IERC20Metadata(tokenOut).decimals();
 
-        uint256 scaledAmountOut = Math.mulDiv(order.amount, order.triggerPrice, 10 ** tokenInDecimals);
-        uint256 amountOut = Math.mulDiv(scaledAmountOut, 10 ** tokenOutDecimals, _PRICE_SCALE);
-        uint256 amountOutMinimum = Math.mulDiv(amountOut, ONE_HUNDRED_PERCENT - order.slippage, ONE_HUNDRED_PERCENT);
+        if (order.orderSide == OrderSide.SELL) {
+            IERC20(tokenIn).safeTransferFrom(order.account, address(this), order.amount);
+            IERC20(tokenIn).approve(UNISWAP_V3_ROUTER, order.amount);
 
-        ISwapRouter.ExactInputParams memory params = ISwapRouter.ExactInputParams({
-            path: order.path,
-            recipient: order.account,
-            deadline: order.deadline,
-            amountIn: order.amount,
-            amountOutMinimum: amountOutMinimum
-        });
-        ISwapRouter(UNISWAP_V3_ROUTER).exactInput(params);
+            uint256 scaledAmountOut = Math.mulDiv(order.amount, order.triggerPrice, 10 ** tokenInDecimals);
+            uint256 amountOut = Math.mulDiv(scaledAmountOut, 10 ** tokenOutDecimals, _PRICE_SCALE);
+            uint256 amountOutMinimum = Math.mulDiv(amountOut, ONE_HUNDRED_PERCENT - order.slippage, ONE_HUNDRED_PERCENT);
+
+            ISwapRouter.ExactInputParams memory params = ISwapRouter.ExactInputParams({
+                path: order.path,
+                recipient: order.account,
+                deadline: order.deadline,
+                amountIn: order.amount,
+                amountOutMinimum: amountOutMinimum
+            });
+            ISwapRouter(UNISWAP_V3_ROUTER).exactInput(params);
+        } else {
+            uint256 scaledAmountIn = Math.mulDiv(order.amount, order.triggerPrice, 10 ** tokenOutDecimals);
+            uint256 amountIn = Math.mulDiv(scaledAmountIn, _PRICE_SCALE, 10 ** tokenInDecimals);
+            uint256 amountInMaximum = Math.mulDiv(amountIn, ONE_HUNDRED_PERCENT + order.slippage, ONE_HUNDRED_PERCENT);
+
+            IERC20(tokenIn).safeTransferFrom(order.account, address(this), amountInMaximum);
+            IERC20(tokenIn).approve(UNISWAP_V3_ROUTER, amountInMaximum);
+
+            ISwapRouter.ExactOutputParams memory params = ISwapRouter.ExactOutputParams({
+                path: order.path,
+                recipient: order.account,
+                deadline: order.deadline,
+                amountOut: order.amount,
+                amountInMaximum: amountInMaximum
+            });
+            uint256 actualAmountIn = ISwapRouter(UNISWAP_V3_ROUTER).exactOutput(params);
+
+            uint256 refundAmount = amountInMaximum - actualAmountIn;
+            IERC20(tokenIn).safeTransfer(order.account, refundAmount);
+        }
 
         emit OrderExecuted(
             order.account,
@@ -143,7 +164,7 @@ contract Dexon is EIP712 {
         return tokenPriceOnUsdc;
     }
 
-    function _validateNonce(address account, uint256 nonce) internal {
+    function _useNonce(address account, uint256 nonce) internal {
         require(!nonces[account][nonce], "Used nonce");
         nonces[account][nonce] = true;
     }
@@ -159,22 +180,28 @@ contract Dexon is EIP712 {
         uint256 numPools = Path.numPools(path);
         require(numPools <= 2, "Invalid path");
 
+        bool isSell = orderSide == OrderSide.SELL;
+
         if (numPools == 1) {
             (tokenIn, tokenOut,) = Path.decodeFirstPool(path);
+            if (!isSell) {
+                (tokenIn, tokenOut) = (tokenOut, tokenIn);
+            }
         } else {
             address midToken;
-
-            (tokenIn, midToken,) = Path.decodeFirstPool(path);
+            if (isSell) {
+                (tokenIn, midToken,) = Path.decodeFirstPool(path);
+                (midToken, tokenOut,) = Path.decodeFirstPool(Path.skipToken(path));
+            } else {
+                (tokenOut, midToken,) = Path.decodeFirstPool(path);
+                (midToken, tokenIn,) = Path.decodeFirstPool(Path.skipToken(path));
+            }
             require(midToken == WETH, "Not supported mid token");
-
-            (midToken, tokenOut,) = Path.decodeFirstPool(Path.skipToken(path));
         }
 
-        if (orderSide == OrderSide.SELL) {
-            require(tokenOut == USDC, "Not supported token");
-        } else {
-            require(tokenIn == USDC, "Not supported token");
-        }
+        require(isSell ? tokenOut == USDC : tokenIn == USDC, "Not supported token");
+
+        return (tokenIn, tokenOut);
     }
 
     function _validateTriggerCondition(Order memory order) internal view {
