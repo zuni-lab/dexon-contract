@@ -81,6 +81,7 @@ contract Dexon is EIP712 {
         (address tokenIn, address tokenOut) = _validatePath(order.orderSide, order.path);
 
         _useNonce(order.account, order.nonce);
+        _validateDeadline(order.deadline);
         _validateTriggerCondition(order);
         _validateSignature(order);
 
@@ -98,23 +99,21 @@ contract Dexon is EIP712 {
             ISwapRouter.ExactInputParams memory params = ISwapRouter.ExactInputParams({
                 path: order.path,
                 recipient: order.account,
-                deadline: order.deadline,
                 amountIn: order.amount,
                 amountOutMinimum: amountOutMinimum
             });
             ISwapRouter(UNISWAP_V3_ROUTER).exactInput(params);
         } else {
             uint256 scaledAmountIn = Math.mulDiv(order.amount, order.triggerPrice, 10 ** tokenOutDecimals);
-            uint256 amountIn = Math.mulDiv(scaledAmountIn, _PRICE_SCALE, 10 ** tokenInDecimals);
+            uint256 amountIn = Math.mulDiv(scaledAmountIn, 10 ** tokenInDecimals, _PRICE_SCALE);
             uint256 amountInMaximum = Math.mulDiv(amountIn, ONE_HUNDRED_PERCENT + order.slippage, ONE_HUNDRED_PERCENT);
 
             IERC20(tokenIn).safeTransferFrom(order.account, address(this), amountInMaximum);
-            IERC20(tokenIn).approve(UNISWAP_V3_ROUTER, amountInMaximum);
+            IERC20(tokenIn).approve(UNISWAP_V3_ROUTER, type(uint256).max);
 
             ISwapRouter.ExactOutputParams memory params = ISwapRouter.ExactOutputParams({
                 path: order.path,
-                recipient: order.account,
-                deadline: order.deadline,
+                recipient: address(this),
                 amountOut: order.amount,
                 amountInMaximum: amountInMaximum
             });
@@ -167,6 +166,10 @@ contract Dexon is EIP712 {
     function _useNonce(address account, uint256 nonce) internal {
         require(!nonces[account][nonce], "Used nonce");
         nonces[account][nonce] = true;
+    }
+
+    function _validateDeadline(uint256 deadline) internal view {
+        require(block.timestamp <= deadline, "Expired order");
     }
 
     function _validatePath(
