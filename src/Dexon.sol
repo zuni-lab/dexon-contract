@@ -40,8 +40,8 @@ contract Dexon is EIP712 {
     mapping(address account => mapping(uint256 nonce => bool used)) public nonces;
 
     enum OrderType {
-        STOP_ORDER,
-        LIMIT_ORDER
+        LIMIT_ORDER,
+        STOP_ORDER
     }
 
     enum OrderSide {
@@ -237,7 +237,7 @@ contract Dexon is EIP712 {
                 ORDER_TYPEHASH,
                 order.account,
                 order.nonce,
-                order.path,
+                keccak256(order.path),
                 order.amount,
                 order.triggerPrice,
                 order.slippage,
