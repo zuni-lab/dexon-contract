@@ -69,6 +69,7 @@ contract Dexon is EIP712 {
         uint256 indexed nonce,
         bytes path,
         uint256 amount,
+        uint256 actualSwapAmount,
         uint256 triggerPrice,
         uint256 slippage,
         OrderType orderType,
@@ -88,6 +89,7 @@ contract Dexon is EIP712 {
         uint256 tokenInDecimals = IERC20Metadata(tokenIn).decimals();
         uint256 tokenOutDecimals = IERC20Metadata(tokenOut).decimals();
 
+        uint256 actualSwapAmount;
         if (order.orderSide == OrderSide.SELL) {
             IERC20(tokenIn).safeTransferFrom(order.account, address(this), order.amount);
             IERC20(tokenIn).approve(UNISWAP_V3_ROUTER, order.amount);
@@ -102,7 +104,7 @@ contract Dexon is EIP712 {
                 amountIn: order.amount,
                 amountOutMinimum: amountOutMinimum
             });
-            ISwapRouter(UNISWAP_V3_ROUTER).exactInput(params);
+            actualSwapAmount = ISwapRouter(UNISWAP_V3_ROUTER).exactInput(params);
         } else {
             uint256 scaledAmountIn = Math.mulDiv(order.amount, order.triggerPrice, 10 ** tokenOutDecimals);
             uint256 amountIn = Math.mulDiv(scaledAmountIn, 10 ** tokenInDecimals, _PRICE_SCALE);
@@ -117,9 +119,9 @@ contract Dexon is EIP712 {
                 amountOut: order.amount,
                 amountInMaximum: amountInMaximum
             });
-            uint256 actualAmountIn = ISwapRouter(UNISWAP_V3_ROUTER).exactOutput(params);
+            actualSwapAmount = ISwapRouter(UNISWAP_V3_ROUTER).exactOutput(params);
 
-            uint256 refundAmount = amountInMaximum - actualAmountIn;
+            uint256 refundAmount = amountInMaximum - actualSwapAmount;
             IERC20(tokenIn).safeTransfer(order.account, refundAmount);
         }
 
@@ -128,6 +130,7 @@ contract Dexon is EIP712 {
             order.nonce,
             order.path,
             order.amount,
+            actualSwapAmount,
             order.triggerPrice,
             order.slippage,
             order.orderType,

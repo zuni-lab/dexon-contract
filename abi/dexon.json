@@ -129,6 +129,7 @@
       { "name": "nonce", "type": "uint256", "indexed": true, "internalType": "uint256" },
       { "name": "path", "type": "bytes", "indexed": false, "internalType": "bytes" },
       { "name": "amount", "type": "uint256", "indexed": false, "internalType": "uint256" },
+      { "name": "actualSwapAmount", "type": "uint256", "indexed": false, "internalType": "uint256" },
       { "name": "triggerPrice", "type": "uint256", "indexed": false, "internalType": "uint256" },
       { "name": "slippage", "type": "uint256", "indexed": false, "internalType": "uint256" },
       { "name": "orderType", "type": "uint8", "indexed": false, "internalType": "enum Dexon.OrderType" },
