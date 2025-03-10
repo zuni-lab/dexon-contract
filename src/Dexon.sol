@@ -34,10 +34,15 @@ contract Dexon is EIP712 {
     bytes32 public constant ORDER_TYPEHASH = keccak256(
         "Order(address account,uint256 nonce,bytes path,uint256 amount,uint256 triggerPrice,uint256 slippage,uint8 orderType,uint8 orderSide,uint256 deadline)" // solhint-disable-line
     );
+    bytes32 public constant TWAP_ORDER_TYPEHASH = keccak256(
+        "TwapOrder(address account,uint256 nonce,bytes path,uint256 amount,uint8 orderSide,uint256 interval,uint256 totalOrders,uint256 startTimestamp)" // solhint-disable-line
+    );
 
     uint256 private constant _PRICE_SCALE = 1e18;
+    uint256 private constant _TWAP_BUFFER_TIME = 20 seconds;
 
     mapping(address account => mapping(uint256 nonce => bool used)) public nonces;
+    mapping(address account => mapping(uint256 nonce => uint256 twapCount)) public twapCounts;
 
     enum OrderType {
         LIMIT_ORDER,
@@ -64,16 +69,43 @@ contract Dexon is EIP712 {
         bytes signature;
     }
 
+    struct TwapOrder {
+        address account;
+        uint256 nonce;
+        bytes path;
+        uint256 amount;
+        OrderSide orderSide;
+        uint256 interval;
+        uint256 totalOrders;
+        uint256 startTimestamp;
+        bytes signature;
+    }
+
     event OrderExecuted(
         address indexed account,
         uint256 indexed nonce,
         bytes path,
-        uint256 amount,
-        uint256 actualSwapAmount,
+        uint256 baseAmount,
+        uint256 quoteAmount,
         uint256 triggerPrice,
         uint256 slippage,
         OrderType orderType,
         OrderSide orderSide
+    );
+
+    event TwapOrderExecuted(
+        address indexed account,
+        uint256 indexed nonce,
+        uint256 indexed orderNth,
+        uint256 baseAmount,
+        uint256 quoteAmount,
+        uint256 executedTimestamp,
+        bytes path,
+        OrderSide orderSide,
+        uint256 totalBaseAmount,
+        uint256 interval,
+        uint256 totalOrders,
+        uint256 startTimestamp
     );
 
     constructor() EIP712(NAME, VERSION) { }
@@ -135,6 +167,74 @@ contract Dexon is EIP712 {
             order.slippage,
             order.orderType,
             order.orderSide
+        );
+    }
+
+    function executeTwapOrder(TwapOrder memory order) public {
+        (address tokenIn,) = _validatePath(order.orderSide, order.path);
+
+        uint256 orderNth = twapCounts[order.account][order.nonce];
+        if (orderNth == 0) {
+            _useNonce(order.account, order.nonce);
+        }
+        _validateSignature(order);
+
+        uint256 expectedTime = order.startTimestamp + orderNth * order.interval;
+        uint256 bufferTime = _TWAP_BUFFER_TIME;
+        require(expectedTime - bufferTime <= block.timestamp, "Too early");
+        require(expectedTime + bufferTime >= block.timestamp, "Expired");
+
+        orderNth += 1;
+        require(orderNth <= order.totalOrders, "All orders executed");
+        twapCounts[order.account][order.nonce] = orderNth;
+
+        uint256 baseAmount = order.amount / order.totalOrders;
+        uint256 quoteAmount;
+        if (order.orderSide == OrderSide.SELL) {
+            IERC20(tokenIn).safeTransferFrom(order.account, address(this), baseAmount);
+            IERC20(tokenIn).approve(UNISWAP_V3_ROUTER, baseAmount);
+
+            ISwapRouter.ExactInputParams memory params = ISwapRouter.ExactInputParams({
+                path: order.path,
+                recipient: order.account,
+                amountIn: baseAmount,
+                amountOutMinimum: 0
+            });
+            quoteAmount = ISwapRouter(UNISWAP_V3_ROUTER).exactInput(params);
+        } else {
+            uint256 amountInMaximum = IERC20(tokenIn).allowance(order.account, address(this));
+            require(amountInMaximum >= baseAmount, "Insufficient allowance");
+
+            IERC20(tokenIn).safeTransferFrom(order.account, address(this), amountInMaximum);
+            IERC20(tokenIn).approve(UNISWAP_V3_ROUTER, type(uint256).max);
+
+            ISwapRouter.ExactOutputParams memory params = ISwapRouter.ExactOutputParams({
+                path: order.path,
+                recipient: address(this),
+                amountOut: baseAmount,
+                amountInMaximum: amountInMaximum
+            });
+            quoteAmount = ISwapRouter(UNISWAP_V3_ROUTER).exactOutput(params);
+
+            uint256 refundAmount = amountInMaximum - quoteAmount;
+            if (refundAmount > 0) {
+                IERC20(tokenIn).safeTransfer(order.account, refundAmount);
+            }
+        }
+
+        emit TwapOrderExecuted(
+            order.account,
+            order.nonce,
+            orderNth,
+            baseAmount,
+            quoteAmount,
+            block.timestamp,
+            order.path,
+            order.orderSide,
+            order.amount,
+            order.interval,
+            order.totalOrders,
+            order.startTimestamp
         );
     }
 
@@ -250,6 +350,25 @@ contract Dexon is EIP712 {
                 order.orderType,
                 order.orderSide,
                 order.deadline
+            )
+        );
+        bytes32 digest = _hashTypedDataV4(structHash);
+        address signer = ECDSA.recover(digest, order.signature);
+        require(signer == order.account, "Invalid signature");
+    }
+
+    function _validateSignature(TwapOrder memory order) internal view {
+        bytes32 structHash = keccak256(
+            abi.encode(
+                TWAP_ORDER_TYPEHASH,
+                order.account,
+                order.nonce,
+                keccak256(order.path),
+                order.amount,
+                order.orderSide,
+                order.interval,
+                order.totalOrders,
+                order.startTimestamp
             )
         );
         bytes32 digest = _hashTypedDataV4(structHash);

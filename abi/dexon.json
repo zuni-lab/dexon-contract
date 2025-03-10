@@ -23,6 +23,13 @@
   },
   {
     "type": "function",
+    "name": "TWAP_ORDER_TYPEHASH",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "bytes32", "internalType": "bytes32" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "UNISWAP_V3_FACTORY",
     "inputs": [],
     "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
@@ -105,6 +112,30 @@
   },
   {
     "type": "function",
+    "name": "executeTwapOrder",
+    "inputs": [
+      {
+        "name": "order",
+        "type": "tuple",
+        "internalType": "struct Dexon.TwapOrder",
+        "components": [
+          { "name": "account", "type": "address", "internalType": "address" },
+          { "name": "nonce", "type": "uint256", "internalType": "uint256" },
+          { "name": "path", "type": "bytes", "internalType": "bytes" },
+          { "name": "amount", "type": "uint256", "internalType": "uint256" },
+          { "name": "orderSide", "type": "uint8", "internalType": "enum Dexon.OrderSide" },
+          { "name": "interval", "type": "uint256", "internalType": "uint256" },
+          { "name": "totalOrders", "type": "uint256", "internalType": "uint256" },
+          { "name": "startTimestamp", "type": "uint256", "internalType": "uint256" },
+          { "name": "signature", "type": "bytes", "internalType": "bytes" }
+        ]
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "getTokenPriceOnUsdc",
     "inputs": [{ "name": "path", "type": "bytes", "internalType": "bytes" }],
     "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
@@ -120,6 +151,16 @@
     "outputs": [{ "name": "used", "type": "bool", "internalType": "bool" }],
     "stateMutability": "view"
   },
+  {
+    "type": "function",
+    "name": "twapCounts",
+    "inputs": [
+      { "name": "account", "type": "address", "internalType": "address" },
+      { "name": "nonce", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [{ "name": "twapCount", "type": "uint256", "internalType": "uint256" }],
+    "stateMutability": "view"
+  },
   { "type": "event", "name": "EIP712DomainChanged", "inputs": [], "anonymous": false },
   {
     "type": "event",
@@ -128,12 +169,31 @@
       { "name": "account", "type": "address", "indexed": true, "internalType": "address" },
       { "name": "nonce", "type": "uint256", "indexed": true, "internalType": "uint256" },
       { "name": "path", "type": "bytes", "indexed": false, "internalType": "bytes" },
-      { "name": "amount", "type": "uint256", "indexed": false, "internalType": "uint256" },
-      { "name": "actualSwapAmount", "type": "uint256", "indexed": false, "internalType": "uint256" },
+      { "name": "baseAmount", "type": "uint256", "indexed": false, "internalType": "uint256" },
+      { "name": "quoteAmount", "type": "uint256", "indexed": false, "internalType": "uint256" },
       { "name": "triggerPrice", "type": "uint256", "indexed": false, "internalType": "uint256" },
       { "name": "slippage", "type": "uint256", "indexed": false, "internalType": "uint256" },
       { "name": "orderType", "type": "uint8", "indexed": false, "internalType": "enum Dexon.OrderType" },
       { "name": "orderSide", "type": "uint8", "indexed": false, "internalType": "enum Dexon.OrderSide" }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "TwapOrderExecuted",
+    "inputs": [
+      { "name": "account", "type": "address", "indexed": true, "internalType": "address" },
+      { "name": "nonce", "type": "uint256", "indexed": true, "internalType": "uint256" },
+      { "name": "orderNth", "type": "uint256", "indexed": true, "internalType": "uint256" },
+      { "name": "baseAmount", "type": "uint256", "indexed": false, "internalType": "uint256" },
+      { "name": "quoteAmount", "type": "uint256", "indexed": false, "internalType": "uint256" },
+      { "name": "executedTimestamp", "type": "uint256", "indexed": false, "internalType": "uint256" },
+      { "name": "path", "type": "bytes", "indexed": false, "internalType": "bytes" },
+      { "name": "orderSide", "type": "uint8", "indexed": false, "internalType": "enum Dexon.OrderSide" },
+      { "name": "totalBaseAmount", "type": "uint256", "indexed": false, "internalType": "uint256" },
+      { "name": "interval", "type": "uint256", "indexed": false, "internalType": "uint256" },
+      { "name": "totalOrders", "type": "uint256", "indexed": false, "internalType": "uint256" },
+      { "name": "startTimestamp", "type": "uint256", "indexed": false, "internalType": "uint256" }
     ],
     "anonymous": false
   },
