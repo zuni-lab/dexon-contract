@@ -39,7 +39,7 @@ contract Dexon is EIP712 {
     );
 
     uint256 private constant _PRICE_SCALE = 1e18;
-    uint256 private constant _TWAP_BUFFER_TIME = 20 seconds;
+    uint256 private constant _TWAP_BUFFER_TIME = 60 seconds;
 
     mapping(address account => mapping(uint256 nonce => bool used)) public nonces;
     mapping(address account => mapping(uint256 nonce => uint256 twapCount)) public twapCounts;
@@ -202,8 +202,9 @@ contract Dexon is EIP712 {
             });
             quoteAmount = ISwapRouter(UNISWAP_V3_ROUTER).exactInput(params);
         } else {
-            uint256 amountInMaximum = IERC20(tokenIn).allowance(order.account, address(this));
-            require(amountInMaximum >= baseAmount, "Insufficient allowance");
+            uint256 allowance = IERC20(tokenIn).allowance(order.account, address(this));
+            uint256 accountBalance = IERC20(tokenIn).balanceOf(order.account);
+            uint256 amountInMaximum = Math.min(allowance, accountBalance);
 
             IERC20(tokenIn).safeTransferFrom(order.account, address(this), amountInMaximum);
             IERC20(tokenIn).approve(UNISWAP_V3_ROUTER, type(uint256).max);
