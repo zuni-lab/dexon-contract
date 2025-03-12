@@ -1,205 +1,198 @@
-# Foundry Template [![Open in Gitpod][gitpod-badge]][gitpod] [![Github Actions][gha-badge]][gha] [![Foundry][foundry-badge]][foundry] [![License: MIT][license-badge]][license]
+# Dexon Protocol [![Github Actions][gha-badge]][gha] [![Foundry][foundry-badge]][foundry] [![License: MIT][license-badge]][license]
 
-[gitpod]: https://gitpod.io/#https://github.com/zuni-lab/dexon-contracts
-[gitpod-badge]: https://img.shields.io/badge/Gitpod-Open%20in%20Gitpod-FFB45B?logo=gitpod
-[gha]: https://github.com/zuni-lab/dexon-contracts/actions
-[gha-badge]: https://github.com/zuni-lab/dexon-contracts/actions/workflows/ci.yml/badge.svg
+[gha]: https://github.com/zuni-lab/dexon-contract/actions
+[gha-badge]: https://github.com/zuni-lab/dexon-contract/actions/workflows/ci.yml/badge.svg
 [foundry]: https://getfoundry.sh/
 [foundry-badge]: https://img.shields.io/badge/Built%20with-Foundry-FFDB1C.svg
 [license]: https://opensource.org/licenses/MIT
 [license-badge]: https://img.shields.io/badge/License-MIT-blue.svg
 
-A Foundry-based template for developing Solidity smart contracts, with sensible defaults.
-
-## What's Inside
-
-- [Forge](https://github.com/foundry-rs/foundry/blob/master/forge): compile, test, fuzz, format, and deploy smart
-  contracts
-- [Bun]: Foundry defaults to git submodules, but this template uses Node.js packages for managing dependencies
-- [Forge Std](https://github.com/foundry-rs/forge-std): collection of helpful contracts and utilities for testing
-- [Prettier](https://github.com/prettier/prettier): code formatter for non-Solidity files
-- [Solhint](https://github.com/protofire/solhint): linter for Solidity code
-
-## Getting Started
-
-Click the [`Use this template`](https://github.com/PaulRBerg/foundry-template/generate) button at the top of the page to
-create a new repository with this repo as the initial state.
-
-Or, if you prefer to install the template manually:
-
-```sh
-$ forge init --template PaulRBerg/foundry-template my-project
-$ cd my-project
-$ bun install # install Solhint, Prettier, and other Node.js deps
-```
-
-If this is your first time with Foundry, check out the
-[installation](https://github.com/foundry-rs/foundry#installation) instructions.
+Dexon is a decentralized order execution protocol built on top of Uniswap V3, enabling advanced trading features like
+limit orders, stop orders, and TWAP (Time-Weighted Average Price) orders.
 
 ## Features
 
-This template builds upon the frameworks and libraries mentioned above, so please consult their respective documentation
-for details about their specific features.
+### Order Types
 
-For example, if you're interested in exploring Foundry in more detail, you should look at the
-[Foundry Book](https://book.getfoundry.sh). In particular, you may be interested in reading the
-[Writing Tests](https://book.getfoundry.sh/forge/writing-tests.html) tutorial.
+- **Limit Orders**: Execute trades when an asset reaches a specific price
+- **Stop Orders**: Trigger trades when price crosses a threshold
+- **TWAP Orders**: Split large orders into smaller parts executed over time
+- **Market Orders**: Direct execution through Uniswap V3 pools
 
-### Sensible Defaults
+### Key Capabilities
 
-This template comes with a set of sensible default configurations for you to use. These defaults can be found in the
-following files:
+- EIP-712 compliant signatures for gasless order submission
+- Price feeds using Uniswap V3 TWAP oracles
+- Multi-hop swaps support (up to 2 hops via WETH)
+- Customizable slippage protection
+- Nonce-based replay protection
 
-```text
-├── .editorconfig
-├── .gitignore
-├── .prettierignore
-├── .prettierrc.yml
-├── .solhint.json
-├── foundry.toml
-└── remappings.txt
+## Technical Overview
+
+### Smart Contracts
+
+```solidity
+contract Dexon is EIP712 {
+    // Core order types
+    struct Order {
+        address account;
+        uint256 nonce;
+        bytes path;
+        uint256 amount;
+        uint256 triggerPrice;
+        uint256 slippage;
+        OrderType orderType;
+        OrderSide orderSide;
+        uint256 deadline;
+        bytes signature;
+    }
+
+    struct TwapOrder {
+        address account;
+        uint256 nonce;
+        bytes path;
+        uint256 amount;
+        OrderSide orderSide;
+        uint256 interval;
+        uint256 totalOrders;
+        uint256 startTimestamp;
+        bytes signature;
+    }
+}
 ```
 
-### VSCode Integration
+### Architecture
 
-This template is IDE agnostic, but for the best user experience, you may want to use it in VSCode alongside Nomic
-Foundation's [Solidity extension](https://marketplace.visualstudio.com/items?itemName=NomicFoundation.hardhat-solidity).
+1. **Order Execution**
 
-For guidance on how to integrate a Foundry project in VSCode, please refer to this
-[guide](https://book.getfoundry.sh/config/vscode).
+   - Validates order signatures and conditions
+   - Checks price triggers against Uniswap V3 oracle
+   - Executes swaps through Uniswap V3 Router
+   - Handles token transfers and approvals
 
-### GitHub Actions
+2. **TWAP Execution**
 
-This template comes with GitHub Actions pre-configured. Your contracts will be linted and tested on every push and pull
-request made to the `main` branch.
+   - Splits orders into multiple parts
+   - Enforces time intervals between executions
+   - Manages partial fills and remaining amounts
 
-You can edit the CI script in [.github/workflows/ci.yml](./.github/workflows/ci.yml).
+3. **Price Oracle**
+   - Uses Uniswap V3 TWAP for reliable price feeds
+   - Supports direct and WETH-quoted pairs
+   - Handles decimal normalization
 
-## Installing Dependencies
+## Deployed Contracts
 
-Foundry typically uses git submodules to manage dependencies, but this template uses Node.js packages because
-[submodules don't scale](https://twitter.com/PaulRBerg/status/1736695487057531328).
+| Network       | Address                                    |
+| ------------- | ------------------------------------------ |
+| Monad Testnet | 0xa549F06eA5C42468f83d94cF8592eF2188439666 |
 
-This is how to install dependencies:
+## Development
 
-1. Install the dependency using your preferred package manager, e.g. `bun install dependency-name`
-   - Use this syntax to install from GitHub: `bun install github:username/repo-name`
-2. Add a remapping for the dependency in [remappings.txt](./remappings.txt), e.g.
-   `dependency-name=node_modules/dependency-name`
+### Prerequisites
 
-Note that OpenZeppelin Contracts is pre-installed, so you can follow that as an example.
+- [Foundry](https://getfoundry.sh/)
+- [Bun](https://bun.sh/) (for dependency management)
 
-## Writing Tests
+### Setup
 
-To write a new test contract, you start by importing `Test` from `forge-std`, and then you inherit it in your test
-contract. Forge Std comes with a pre-instantiated [cheatcodes](https://book.getfoundry.sh/cheatcodes/) environment
-accessible via the `vm` property. If you would like to view the logs in the terminal output, you can add the `-vvv` flag
-and use [console.log](https://book.getfoundry.sh/faq?highlight=console.log#how-do-i-use-consolelog).
+```bash
+# Clone the repository
+git clone https://github.com/zuni-lab/dexon-contract
+cd dexon-contract
 
-This template comes with an example test contract [Foo.t.sol](./tests/Foo.t.sol)
+# Install dependencies
+bun install
 
-## Usage
-
-This is a list of the most frequently needed commands.
-
-### Build
-
-Build the contracts:
-
-```sh
-$ forge build
+# Copy and configure environment variables
+cp .env.example .env
 ```
 
-### Clean
+### Testing
 
-Delete the build artifacts and cache directories:
+```bash
+# Run all tests
+forge test
 
-```sh
-$ forge clean
+# Run with gas reporting
+forge test --gas-report
+
+# Run specific test
+forge test --match-test testExecuteOrder
+
+# Generate coverage report
+bun run test:coverage
 ```
 
-### Compile
+### Deployment
 
-Compile the contracts:
+```bash
+# Deploy to local network
+forge script script/Deploy.s.sol --broadcast --fork-url http://localhost:8545
 
-```sh
-$ forge build
+# Deploy to testnet (requires configured .env)
+forge script script/Deploy.s.sol --broadcast --network sepolia
 ```
 
-### Coverage
+## Integration Guide
 
-Get a test coverage report:
+### Creating Orders
 
-```sh
-$ forge coverage
+```typescript
+const order = {
+  account: userAddress,
+  nonce: await dexon.nonces(userAddress),
+  path: encodePath([WETH, USDC], [3000]),
+  amount: parseEther("1"),
+  triggerPrice: parseUnits("1800", 18), // $1800 per ETH
+  slippage: 100, // 0.01%
+  orderType: OrderType.LIMIT_ORDER,
+  orderSide: OrderSide.SELL,
+  deadline: Math.floor(Date.now() / 1000) + 3600,
+};
+
+const signature = await signOrder(order, signer);
 ```
 
-### Deploy
+### Creating TWAP Orders
 
-Deploy to Anvil:
+```typescript
+const twapOrder = {
+  account: userAddress,
+  nonce: await dexon.nonces(userAddress),
+  path: encodePath([WETH, USDC], [3000]),
+  amount: parseEther("10"),
+  orderSide: OrderSide.SELL,
+  interval: 3600, // 1 hour between executions
+  totalOrders: 10, // Split into 10 parts
+  startTimestamp: Math.floor(Date.now() / 1000),
+};
 
-```sh
-$ forge script script/Deploy.s.sol --broadcast --fork-url http://localhost:8545
+const signature = await signTwapOrder(twapOrder, signer);
 ```
 
-For this script to work, you need to have a `MNEMONIC` environment variable set to a valid
-[BIP39 mnemonic](https://iancoleman.io/bip39/).
+## Security
 
-For instructions on how to deploy to a testnet or mainnet, check out the
-[Solidity Scripting](https://book.getfoundry.sh/tutorials/solidity-scripting.html) tutorial.
+### Audits
 
-### Format
+- [Audit Report 1] - Date: TBD
+- [Audit Report 2] - Date: TBD
 
-Format the contracts:
+### Security Considerations
 
-```sh
-$ forge fmt
-```
+- All orders require valid EIP-712 signatures
+- Nonce-based replay protection
+- Slippage protection on all trades
+- Time-bound execution windows
+- Partial fill support for TWAP orders
 
-### Gas Usage
+## Contributing
 
-Get a gas report:
-
-```sh
-$ forge test --gas-report
-```
-
-### Lint
-
-Lint the contracts:
-
-```sh
-$ bun run lint
-```
-
-### Test
-
-Run the tests:
-
-```sh
-$ forge test
-```
-
-Generate test coverage and output result to the terminal:
-
-```sh
-$ bun run test:coverage
-```
-
-Generate test coverage with lcov report (you'll have to open the `./coverage/index.html` file in your browser, to do so
-simply copy paste the path):
-
-```sh
-$ bun run test:coverage:report
-```
-
-## Related Efforts
-
-- [foundry-rs/forge-template](https://github.com/foundry-rs/forge-template)
-- [abigger87/femplate](https://github.com/abigger87/femplate)
-- [cleanunicorn/ethereum-smartcontract-template](https://github.com/cleanunicorn/ethereum-smartcontract-template)
-- [FrankieIsLost/forge-template](https://github.com/FrankieIsLost/forge-template)
+1. Fork the repository
+2. Create your feature branch
+3. Run tests and linting
+4. Submit a pull request
 
 ## License
 
-This project is licensed under MIT.
+This project is licensed under the MIT License - see the [LICENSE.md](./LICENSE.md) file for details.
