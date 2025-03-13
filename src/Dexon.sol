@@ -147,7 +147,7 @@ contract Dexon is EIP712 {
 
             ISwapRouter.ExactOutputParams memory params = ISwapRouter.ExactOutputParams({
                 path: order.path,
-                recipient: address(this),
+                recipient: order.account,
                 amountOut: order.amount,
                 amountInMaximum: amountInMaximum
             });
@@ -211,7 +211,7 @@ contract Dexon is EIP712 {
 
             ISwapRouter.ExactOutputParams memory params = ISwapRouter.ExactOutputParams({
                 path: order.path,
-                recipient: address(this),
+                recipient: order.account,
                 amountOut: baseAmount,
                 amountInMaximum: amountInMaximum
             });
