@@ -85,7 +85,7 @@ contract Dexon is EIP712 {
 
 | Network       | Address                                    |
 | ------------- | ------------------------------------------ |
-| Monad Testnet | 0xa549F06eA5C42468f83d94cF8592eF2188439666 |
+| Monad Testnet | 0x45acD584500c747dCE86c77389b3b3B458Eb0A0b |
 
 ## Development
 
